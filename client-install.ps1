@@ -7,10 +7,16 @@
 $vsCodePath = ($env:USERPROFILE+'\AppData\Local\Programs\Microsoft VS Code\'),'C:\Program Files\Microsoft VS Code\','C:\Program Files (x86)\Microsoft VS Code\'
 $chocoPath = $env:ProgramData + '\Chocolatey'
 $logFilePath = $env:USERPROFILE + '\Documents\Install Log'
-
+#List of scripts for scheduled tasks:
 $scheduledTasks = @{
     SpotLightImageFetcher = $env:USERPROFILE + '\SynologyDrive\Projects\Powershell\CopyWindowsSpotlightPictures.ps1'
 }
+# Specify the trigger settings for scheduled tasks:
+$startupTrigger = New-ScheduledTaskTrigger -AtStartup
+# Specify the account to run the script
+$scheduleUser = "Users"
+# 
+$Action = New-ScheduledTaskAction -Execute "PowerShell.exe" -Argument "C:\Users\gchi\SynologyDrive\Projects\Powershell\CopyWindowsSpotlightPictures.ps1"
 # Initialize a variable with a list of Windows Optional Features to Enable:
 $optionalFeatures = 'Microsoft-Windows-Subsystem-Linux', 'Microsoft-Hyper-V-All'
 # Initialize a variable with a list of Powershell modules to install:
@@ -37,7 +43,7 @@ $logDate = Get-Date -Format ddMMyyy-HHmmss
 if (!(Test-Path $logfilePath)) {
     New-Item $logFilePath -ItemType Directory
 }
-Function Write-SPImportLog {
+Function Write-ClientInstallLog {
     param(
         [Parameter(Mandatory = $true)][String]$logmessage
     )
@@ -47,12 +53,12 @@ Function Write-SPImportLog {
 # Enables Windows Optional Features:
 ForEach ($feature in $optionalFeatures) {
     try {
-        Write-SPImportLog "Enabling Windows Feature $feature"
+        Write-ClientInstallLog "Enabling Windows Feature $feature"
         Enable-WindowsOptionalFeature -Online -FeatureName $feature -All -NoRestart
     }
     catch {
         Write-Warning "$feature was not installed caused by the following Error:`n$Error[0].Exception.GetType().FullName"
-        Write-SPImportLog "$feature was not installed caused by the following Error:`n$Error[0].Exception.GetType().FullName"
+        Write-ClientInstallLog "$feature was not installed caused by the following Error:`n$Error[0].Exception.GetType().FullName"
     }
 }
 # Install PowerShell modules:
@@ -61,12 +67,12 @@ Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
 Get-Module | Update-Module -Confirm: $false -Force -EA SilentlyContinue
 ForEach ($module in $modules) {
     try {
-        Write-SPImportLog "Installing PSModule $module"
+        Write-ClientInstallLog "Installing PSModule $module"
         Install-Module $module -Confirm: $false -AllowClobber -Force -EA SilentlyContinue
     }
     catch {
         Write-Warning "$module was not installed caused by the following Error:`n$Error[0].Exception.GetType().FullName"
-        Write-SPImportLog "$module was not installed caused by the following Error:`n$Error[0].Exception.GetType().FullName"
+        Write-ClientInstallLog "$module was not installed caused by the following Error:`n$Error[0].Exception.GetType().FullName"
     }
 }
 Set-PSRepository -Name PSGallery -InstallationPolicy Untrusted
@@ -75,15 +81,15 @@ Update-Help -Confirm: $false -Force -EA SilentlyContinue
 # Install Chocolatey and all packages:
 If (Test-Path -Path $chocoPath) {
     Write-Warning "Chocolatey already installed, continuing with packages"
-    Write-SPImportLog "Chocolatey already installed, continuing with packages"
+    Write-ClientInstallLog "Chocolatey already installed, continuing with packages"
     foreach ($package in $packages) {
         try {
-            Write-SPImportLog "Installing $package"
+            Write-ClientInstallLog "Installing $package"
             choco install $package -y
         }
         catch {
             Write-Warning "$package was not installed caused by the following Error:`n$Error[0].Exception.GetType().FullName"
-            Write-SPImportLog "$package was not installed caused by the following Error:`n$Error[0].Exception.GetType().FullName"
+            Write-ClientInstallLog "$package was not installed caused by the following Error:`n$Error[0].Exception.GetType().FullName"
         }
     }
 }
@@ -92,12 +98,12 @@ else {
         Set-ExecutionPolicy Bypass -Scope Process -Force -EA Stop; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; Invoke-Expression ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))
         ForEach ($package in $Packages) {
             try {
-                Write-SPImportLog "Installing $package"
+                Write-ClientInstallLog "Installing $package"
                 choco install $package -y
             }
             catch {
                 Write-Warning "$package was not installed caused by the following Error:`n$Error[0].Exception.GetType().FullName"
-                Write-SPImportLog "$package was not installed caused by the following Error:`n$Error[0].Exception.GetType().FullName"
+                Write-ClientInstallLog "$package was not installed caused by the following Error:`n$Error[0].Exception.GetType().FullName"
             }
         }
     }
@@ -105,10 +111,14 @@ else {
         # Use cmdline '$theError | Format-List * -Force' to see all sub-properties of a thrown error-code... and then`
         # create an if function to make a custom error message handling - e.g.: 'if ($theError.Exception -like "*404*")'
         if ($Error.Exception -like "*404*") {
-            Write-Warning "The URL to fetch installscript for Chocolatey was not found or has been changed, please visit https://chocolatey.org/install `
+            Write-Warning "The URL to fetch install-script for Chocolatey was not found or has been changed, please visit https://chocolatey.org/install `
             to replace the URL or contact gakin@imara.ai for troubleshooting"
-            Write-SPImportLog "The URL to fetch installscript for Chocolatey was not found or has been changed, please visit https://chocolatey.org/install `
+            Write-ClientInstallLog "The URL to fetch install-script for Chocolatey was not found or has been changed, please visit https://chocolatey.org/install `
             to replace the URL or contact gakin@imara.ai for troubleshooting"
+        }
+        if ($Error.Exception -notlike "*404*") {
+            Write-Warning "Chocolatey failed to install - Skipping package installs"
+            Write-ClientInstallLog "Chocolatey failed to install caused by the following Error:`n$Error[0].Exception.GetType().FullName"
         }
     }
 }
@@ -118,28 +128,33 @@ foreach ($path in $vsCodePath) {
         Write-Output $path
         try {
             forEach ($extension in $extensions) {
-                Write-SPImportLog "Installing extension $extension"
+                Write-ClientInstallLog "Installing extension $extension"
                 Write-Warning "Installing extension $extension"
                 Code --install-extension $extension --Force
             }
         }
         catch {
-            Write-Warning "help1"
-            Write-SPImportLog "$extension was not installed caused by the following Error:`n$Error[0].Exception.GetType().FullName"
+            Write-Warning "$extension was not installed - extension skipped."
+            Write-ClientInstallLog "$extension was not installed caused by the following Error:`n$Error[0].Exception.GetType().FullName"
         }
     }
     else {
-        Write-Warning "help2"
-        Write-SPImportLog "VS Code was not found in $path because of the following Error:`n\n$Error[0].Exception.GetType().FullName"
+        Write-Warning "VS Code was not found in $path - skipping VS Code extensions installation process."
+        Write-ClientInstallLog "VS Code was not found in $path  - skipping VS Code extension installations caused by the following Error:`n$Error[0].Exception.GetType().FullName"
     }
 }
 
 # Create Scheduled tasks
-foreach ($task in $scheduledTasks) {
-    $Trigger = New-ScheduledTaskTrigger -AtStartup # Specify the trigger settings
-    $User = "Users" # Specify the account to run the script
-    $Action = New-ScheduledTaskAction -Execute "PowerShell.exe" -Argument "C:\Users\gchi\SynologyDrive\Projects\Powershell\CopyWindowsSpotlightPictures.ps1" # Specify what program to run and with its parameters
-    Register-ScheduledTask -TaskName $task -Trigger $Trigger -User $User -Action $Action -RunLevel Highest –Force # Specify the name of the task
+foreach ($task in $scheduledTasks){
+    try {
+        Write-ClientInstallLog "Configuring Scheduled tasks $task"
+        Write-Warning "Configuring Scheduled tasks $task"
+        Register-ScheduledTask -TaskName $task -Trigger $startupTrigger -User $scheduleUser -Action $Action -RunLevel Highest –Force
+    }
+    catch {
+        Write-Warning "Failed to configure scheduled task, skipping to next scheduled task"
+        Write-ClientInstallLog "Failed to configure scheduled task caused by the following Error:`n$Error[0].Exception.GetType().FullName"
+    }
 }
 
 # //END SCRIPT//
