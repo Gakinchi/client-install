@@ -1,7 +1,7 @@
 <#==============================================================
 This script does the following:
 1. Logs the script progress in users 'Documents\Install Log' folder.
-2.Conveniently sets my user environment '$env:Project' to my default project folder.
+2. Conveniently sets my user environment '$env:Project' to my default project folder.
 3. Installs Windows Features.
 4. Installs PS Modules.
 5. Installs applications.
