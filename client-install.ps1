@@ -1,44 +1,32 @@
-# For customizations - find available Chocolatey NuGet packages from web: https://chocolatey.org/packages
-# gchi@recursion.no
+<#==============================================================
+This script does the following:
+1. Logs the script progress in users 'Documents\Install Log' folder.
+2.Conveniently sets my user environment '$env:Project' to my default project folder.
+3. Installs Windows Features.
+4. Installs PS Modules.
+5. Installs applications.
+6. Installs default VS Code extensions.
+7. Configures my default Task Schedules.
 
-# //START SCRIPT//
+a) For customizations - find available Chocolatey NuGet packages from web: https://chocolatey.org/packages
+b) Note: In my experience - the VS Code Extension commands doesn't work until you reload the PowerShell,
+   this is why I use Invoke-Command or Invoke-Expression on a new PS window instead.
+c) you're free to modify this script and if you do find improvements, please git push it or notify me at gchi@recursion.no
+==============================================================#>
 
+#=============== START SCRIPT ===============#
 # Initialize path parameters:
-$vsCodePath = ($env:USERPROFILE+'\AppData\Local\Programs\Microsoft VS Code\'),'C:\Program Files\Microsoft VS Code\','C:\Program Files (x86)\Microsoft VS Code\'
+$vsCodePath = ($env:USERPROFILE + '\AppData\Local\Programs\Microsoft VS Code\'), 'C:\Program Files\Microsoft VS Code\', 'C:\Program Files (x86)\Microsoft VS Code\'
 $chocoPath = $env:ProgramData + '\Chocolatey'
 $logFilePath = $env:USERPROFILE + '\Documents\Install Log'
-#List of scripts for scheduled tasks:
-$scheduledTasks = @{
-    SpotLightImageFetcher = $env:USERPROFILE + '\SynologyDrive\Projects\Powershell\CopyWindowsSpotlightPictures.ps1'
-}
-# Specify the trigger settings for scheduled tasks:
-$startupTrigger = New-ScheduledTaskTrigger -AtStartup
-# Specify the account to run the script
-$scheduleUser = "Users"
-# 
-$Action = New-ScheduledTaskAction -Execute "PowerShell.exe" -Argument "C:\Users\gchi\SynologyDrive\Projects\Powershell\CopyWindowsSpotlightPictures.ps1"
-# Initialize a variable with a list of Windows Optional Features to Enable:
+# Initialize features, modules, packages and extensions:
 $optionalFeatures = 'Microsoft-Windows-Subsystem-Linux', 'Microsoft-Hyper-V-All'
-# Initialize a variable with a list of Powershell modules to install:
 $modules = 'Az', 'posh-git', 'oh-my-posh', 'Microsoft.Graph', 'ExchangeOnlineManagement', 'MicrosoftTeams', 'Microsoft.Online.SharePoint.PowerShell', 'PnP.PowerShell'
-# Initialize a variable with a list of NuGet packages to install:
 $packages = 'git', 'gh', '7zip', 'microsoft-teams', 'microsoft-windows-terminal', 'cascadiacode', 'cascadiacodepl', 'oh-my-posh', 'poshgit', 'slack', 'powertoys', 'postman', 'qbittorrent', '1password', 'etcher', 'au', 'epicgameslauncher', 'steam-client', 'docker-cli', 'vscode'
-# Initialize a variable with a list of VS Code extensions to install:
 $extensions = 'vscode.powershell', 'ms-vscode.powershell', 'ms-vscode-remote.remote-wsl', 'ms-dotnettools.csharp', 'ms-vscode.cpptools', 'visualstudioexptteam.vscodeintellicode', 'ms-vscode.azure-account', 'ms-azuretools.vscode-logicapps', 'vscode.docker', 'vscode.yaml', 'ms-azuretools.vscode-docker', 'ms-toolsai.jupyter', 'ms-python.python', 'ecmel.vscode-html-css', 'felixfbecker.php-intellisense'
-
 # Automatically add my own permanent Project environment variable, this can be replaced/customized as suited for you:
 [Environment]::SetEnvironmentVariable("Projects", "$env:USERPROFILE\SynologyDrive\Projects", "User")
-
-# UNDER DEV: INITIALIZE TIMEOUT TIMER:
-Function ResetTimer {
-    $script:startTime = [DateTime]::Now
-}
-Function IsTimeout([TimeSpan]$timeout) {
-    return ([DateTime]::Now - $startTime) -ge $timeout
-}
-# END OF DEV TIMEOUT TIMER
-
-# Initialize log function:
+# Initialize script-log:
 $logDate = Get-Date -Format ddMMyyy-HHmmss
 if (!(Test-Path $logfilePath)) {
     New-Item $logFilePath -ItemType Directory
@@ -49,7 +37,6 @@ Function Write-ClientInstallLog {
     )
     Add-Content "$logFilePath\chocoReport - $logdate.txt" "$(Get-Date -Format HH:mm:ss) - $logmessage" # Make sure folder exist
 }
-# End log function
 # Enables Windows Optional Features:
 ForEach ($feature in $optionalFeatures) {
     try {
@@ -68,6 +55,7 @@ Get-Module | Update-Module -Confirm: $false -Force -EA SilentlyContinue
 ForEach ($module in $modules) {
     try {
         Write-ClientInstallLog "Installing PSModule $module"
+        Write-Warning "Installing PSModule $module"
         Install-Module $module -Confirm: $false -AllowClobber -Force -EA SilentlyContinue
     }
     catch {
@@ -78,7 +66,7 @@ ForEach ($module in $modules) {
 Set-PSRepository -Name PSGallery -InstallationPolicy Untrusted
 Set-ExecutionPolicy -ExecutionPolicy AllSigned -Scope Process
 Update-Help -Confirm: $false -Force -EA SilentlyContinue
-# Install Chocolatey and all packages:
+# Install Chocolatey and packages:
 If (Test-Path -Path $chocoPath) {
     Write-Warning "Chocolatey already installed, continuing with packages"
     Write-ClientInstallLog "Chocolatey already installed, continuing with packages"
@@ -98,6 +86,7 @@ else {
         Set-ExecutionPolicy Bypass -Scope Process -Force -EA Stop; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; Invoke-Expression ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))
         ForEach ($package in $Packages) {
             try {
+                
                 Write-ClientInstallLog "Installing $package"
                 choco install $package -y
             }
@@ -122,39 +111,45 @@ else {
         }
     }
 }
-# Install Visual Studio Code Extensions
-foreach ($path in $vsCodePath) {
-    if (Test-Path -Path $path) {
-        Write-Output $path
-        try {
+# Install Visual Studio Code Extensions:
+$vsExtCmd = 'cmd /c start powershell -NoExit -Command {
+    foreach ($path in $vsCodePath) {
+        if (Test-Path -Path $path) {
+            Write-Output "VS Code found in $path"
             forEach ($extension in $extensions) {
-                Write-ClientInstallLog "Installing extension $extension"
-                Write-Warning "Installing extension $extension"
-                Code --install-extension $extension --Force
+                try {
+                    Write-ClientInstallLog "Installing extension $extension"
+                    Write-Warning "Installing extension $extension"
+                    Code --install-extension $extension --Force
+                }
+                catch {
+                    Write-Warning "$extension was not installed - extension skipped."
+                    Write-ClientInstallLog "$extension was not installed caused by the following Error:`n$Error[0].Exception.GetType().FullName"
+                }
             }
         }
-        catch {
-            Write-Warning "$extension was not installed - extension skipped."
-            Write-ClientInstallLog "$extension was not installed caused by the following Error:`n$Error[0].Exception.GetType().FullName"
+        else {
+            Write-Warning "VS Code was not found in $path"
+            Write-ClientInstallLog "VS Code was not found in $path caused by the following Error:`n$Error[0].Exception.GetType().FullName"
         }
     }
-    else {
-        Write-Warning "VS Code was not found in $path - skipping VS Code extensions installation process."
-        Write-ClientInstallLog "VS Code was not found in $path  - skipping VS Code extension installations caused by the following Error:`n$Error[0].Exception.GetType().FullName"
-    }
-}
+}'
 
+Invoke-Expression $vsExtCmd # Alternative Invoke-Command ScriptBlock{<script here>}
+
+# Specify the settings for scheduled tasks:
+$schedName = "Windows SpotLight Image Fetcher"
+$startupTrigger = New-ScheduledTaskTrigger -AtStartup
+$schedUser = "Users"
+$Action = New-ScheduledTaskAction -Execute "PowerShell.exe" -Argument "C:\Users\gchi\SynologyDrive\Projects\Powershell\CopyWindowsSpotlightPictures.ps1"
 # Create Scheduled tasks
-foreach ($task in $scheduledTasks){
-    try {
-        Write-ClientInstallLog "Configuring Scheduled tasks $task"
-        Write-Warning "Configuring Scheduled tasks $task"
-        Register-ScheduledTask -TaskName $task -Trigger $startupTrigger -User $scheduleUser -Action $Action -RunLevel Highest –Force
+try {
+    Write-ClientInstallLog "Configuring Scheduled tasks $task"
+    Write-Warning "Configuring Scheduled tasks $task"
+    Register-ScheduledTask -TaskName $schedName -Trigger $startupTrigger -User $schedUser -Action $Action -RunLevel Highest –Force
     }
-    catch {
-        Write-Warning "Failed to configure scheduled task, skipping to next scheduled task"
-        Write-ClientInstallLog "Failed to configure scheduled task caused by the following Error:`n$Error[0].Exception.GetType().FullName"
-    }
+catch {
+    Write-Warning "Failed to configure scheduled task, skipping to next scheduled task"
+    Write-ClientInstallLog "Failed to configure scheduled task caused by the following Error:`n$Error[0].Exception.GetType().FullName"
 }
-
-# //END SCRIPT//
+#=============== END SCRIPT ===============#
