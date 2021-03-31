@@ -11,7 +11,7 @@ This script does the following:
 a) For customizations - find available Chocolatey NuGet packages from web: https://chocolatey.org/packages
 b) Note: In my experience - the VS Code Extension commands doesn't work until you reload the PowerShell,
    this is why I use Invoke-Command or Invoke-Expression on a new PS window instead.
-c) you're free to modify this script and if you do find improvements, please git push it or notify me at gchi@recursion.no
+c) You're free to modify this script and if you do find improvements, please git push it or notify me at gchi@recursion.no
 ==============================================================#>
 
 #=============== START SCRIPT ===============#
@@ -112,7 +112,8 @@ else {
     }
 }
 # Install Visual Studio Code Extensions:
-$vsExtCmd = 'cmd /c start powershell -NoExit -Command {
+$vsExtCmd =
+'cmd /c start powershell -NoExit -Command {
     foreach ($path in $vsCodePath) {
         if (Test-Path -Path $path) {
             Write-Output "VS Code found in $path"
@@ -134,9 +135,15 @@ $vsExtCmd = 'cmd /c start powershell -NoExit -Command {
         }
     }
 }'
-
-Invoke-Expression $vsExtCmd # Alternative Invoke-Command ScriptBlock{<script here>}
-
+try {
+    Write-ClientInstallLog "Trying to invoke VS Code Extension script"
+    Write-Warning "Trying to invoke VS Code Extension script"
+    Invoke-Expression $vsExtCmd # Alternative Invoke-Command ScriptBlock{<script here>} - if you need the intellisense.
+}
+catch {
+    Write-Warning "Failed to invoke VS Code Extension script - skipped process."
+    Write-ClientInstallLog "Failed to invoke VS Code Extension script caused by the following Error:`n$Error[0].Exception.GetType().FullName"
+}
 # Specify the settings for scheduled tasks:
 $schedName = "Windows SpotLight Image Fetcher"
 $startupTrigger = New-ScheduledTaskTrigger -AtStartup
