@@ -9,9 +9,12 @@ This script does the following:
 7. Configures my default Task Schedules.
 
 a) For customizations - find available Chocolatey NuGet packages from web: https://chocolatey.org/packages
-b) Note: In my experience - the VS Code Extension commands doesn't work until you reload the PowerShell,
-   this is why I use Invoke-Command or Invoke-Expression on a new PS window instead.
-c) You're free to modify this script and if you do find improvements, please git push it or notify me at gchi@recursion.no
+b) Note: In my experience - the VS Code Extension part doesn't work until you reload the PowerShell,
+   this is why I use Invoke-Command or Invoke-Expression on a new PS window instead
+c) You're free to modify this script as you want and if you do find improvements, please file a bug or feature request
+   as an issue at Github or notify me at gchi@recursion.no
+d) Do not hesitate to contribute a bug fix or feature implementation by submitting a pull request, but keep in mind
+   Commit with a summarized explanation about the change
 ==============================================================#>
 
 #=============== START SCRIPT ===============#
@@ -35,7 +38,7 @@ Function Write-ClientInstallLog {
     param(
         [Parameter(Mandatory = $true)][String]$logmessage
     )
-    Add-Content "$logFilePath\chocoReport - $logdate.txt" "$(Get-Date -Format HH:mm:ss) - $logmessage" # Make sure folder exist
+    Add-Content "$logFilePath\InstallReport - $logdate.log" "$(Get-Date -Format HH:mm:ss) - $logmessage" # Make sure folder exist
 }
 # Enables Windows Optional Features:
 ForEach ($feature in $optionalFeatures) {
@@ -138,22 +141,25 @@ $vsExtCmd =
 try {
     Write-ClientInstallLog "Trying to invoke VS Code Extension script"
     Write-Warning "Trying to invoke VS Code Extension script"
-    Invoke-Expression $vsExtCmd # Alternative Invoke-Command ScriptBlock{<script here>} - if you need the intellisense.
+    Invoke-Expression -EA SilentlyContinue $vsExtCmd # Alternative Invoke-Command ScriptBlock{<script here>} - if you need the intellisense.
 }
 catch {
     Write-Warning "Failed to invoke VS Code Extension script - skipped process."
     Write-ClientInstallLog "Failed to invoke VS Code Extension script caused by the following Error:`n$Error[0].Exception.GetType().FullName"
 }
 # Specify the settings for scheduled tasks:
-$schedName = "Windows SpotLight Image Fetcher"
-$startupTrigger = New-ScheduledTaskTrigger -AtStartup
-$schedUser = "Users"
-$Action = New-ScheduledTaskAction -Execute "PowerShell.exe" -Argument "C:\Users\gchi\SynologyDrive\Projects\Powershell\CopyWindowsSpotlightPictures.ps1"
+$RegisterScheduledTask = @{
+    TaskName = "Windows SpotLight Image Fetcher"
+    Trigger = New-ScheduledTaskTrigger -AtStartup
+    User = "Users"
+    Action = New-ScheduledTaskAction -Execute "PowerShell.exe" -Argument "C:\Users\gchi\SynologyDrive\Projects\Powershell\CopyWindowsSpotlightPictures.ps1"
+    RunLevel = Highest
+}
 # Create Scheduled tasks
 try {
     Write-ClientInstallLog "Configuring Scheduled tasks $task"
     Write-Warning "Configuring Scheduled tasks $task"
-    Register-ScheduledTask -TaskName $schedName -Trigger $startupTrigger -User $schedUser -Action $Action -RunLevel Highest –Force
+    Register-ScheduledTask $RegisterScheduledTask –Force
     }
 catch {
     Write-Warning "Failed to configure scheduled task, skipping to next scheduled task"
