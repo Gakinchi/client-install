@@ -19,21 +19,21 @@ d) Do not hesitate to contribute a bug fix or feature implementation by submitti
 
 #=============== START SCRIPT ===============#
 # Initialize path parameters:
-$vsCodePath = ($env:USERPROFILE + '\AppData\Local\Programs\Microsoft VS Code\'), 'C:\Program Files\Microsoft VS Code\', 'C:\Program Files (x86)\Microsoft VS Code\'
-$chocoPath = $env:ProgramData + '\Chocolatey'
 $logFilePath = $env:USERPROFILE + '\Documents\Install Log'
-# Initialize features, modules, packages and extensions:
+$vsCodePath = ($env:USERPROFILE + '\AppData\Local\Programs\Microsoft VS Code\'), 'C:\Program Files\Microsoft VS Code\', 'C:\Program Files (x86)\Microsoft VS Code\'
+# Initialize Windows features, Powershell modules, WinGet packages and VSCode extensions:
 $optionalFeatures = 'Microsoft-Windows-Subsystem-Linux', 'Microsoft-Hyper-V-All'
 $modules = 'Az', 'posh-git', 'oh-my-posh', 'Microsoft.Graph', 'ExchangeOnlineManagement', 'MicrosoftTeams', 'Microsoft.Online.SharePoint.PowerShell', 'PnP.PowerShell'
-$packages = 'git', 'gh', '7zip', 'microsoft-teams', 'microsoft-windows-terminal', 'cascadiacode', 'cascadiacodepl', 'oh-my-posh', 'poshgit', 'slack', 'powertoys', 'postman', 'qbittorrent', '1password', 'etcher', 'au', 'epicgameslauncher', 'steam-client', 'docker-cli', 'vscode'
+$winGetPackages = 'Git.Git', 'GitHub.cli', '7zip.7zip', 'Microsoft.Teams', 'JanDeDobbeleer.OhMyPosh', 'SlackTechnologies.Slack', 'Microsoft.PowerToys', 'Postman.Postman', 'qBittorrent.qBittorrent', 'Balena.Etcher', 'Microsoft.VisualStudioCode', 'qBittorrent.qBittorrent', 'Postman.Postman', 'Docker.DockerDesktop', 'Microsoft.PowerToys', '9WZDNCRFJ3PS'<# Microsoft Remote Desktop #>
 $extensions = 'vscode.powershell', 'ms-vscode.powershell', 'ms-vscode-remote.remote-wsl', 'ms-dotnettools.csharp', 'ms-vscode.cpptools', 'visualstudioexptteam.vscodeintellicode', 'ms-vscode.azure-account', 'ms-azuretools.vscode-logicapps', 'vscode.docker', 'vscode.yaml', 'ms-azuretools.vscode-docker', 'ms-toolsai.jupyter', 'ms-python.python', 'ecmel.vscode-html-css', 'felixfbecker.php-intellisense'
 # Automatically add my own permanent Project environment variable, this can be replaced/customized as suited for you:
 [Environment]::SetEnvironmentVariable("Projects", "$env:USERPROFILE\SynologyDrive\Projects", "User")
-# Initialize script-log:
+# Initialize script-logging during installation:
 $logDate = Get-Date -Format ddMMyyy-HHmmss
 if (!(Test-Path $logfilePath)) {
     New-Item $logFilePath -ItemType Directory
 }
+# Adding installation logs parameters:
 Function Write-ClientInstallLog {
     param(
         [Parameter(Mandatory = $true)][String]$logmessage
@@ -41,121 +41,170 @@ Function Write-ClientInstallLog {
     Add-Content "$logFilePath\InstallReport - $logdate.log" "$(Get-Date -Format HH:mm:ss) - $logmessage" # Make sure folder exist
 }
 # Enables Windows Optional Features:
-ForEach ($feature in $optionalFeatures) {
+forEach ($feature in $optionalFeatures) {
     try {
-        Write-ClientInstallLog "Enabling Windows Feature $feature"
+        $logMessage = "Enabling Windows Feature $feature"
+        Write-ClientInstallLog $logMessage
+        Write-Host $logMessage
         Enable-WindowsOptionalFeature -Online -FeatureName $feature -All -NoRestart
     }
     catch {
-        Write-Warning "$feature was not installed caused by the following Error:`n$Error[0].Exception.GetType().FullName"
-        Write-ClientInstallLog "$feature was not installed caused by the following Error:`n$Error[0].Exception.GetType().FullName"
+        $logMessage = "$feature was not installed caused by the following Error:`n$Error[0].Exception.GetType().FullName"
+        Write-Warning $logMessage
+        Write-ClientInstallLog $logMessage
     }
 }
+# Installs necessary package-providers in beforehand, this is to avoid confirmation-prompts during the module installations:
+Install-PackageProvider -Name "NuGet" -Confirm: $false -Force -EA SilentlyContinue
 # Install PowerShell modules:
 Set-ExecutionPolicy -ExecutionPolicy Undefined -Scope Process
 Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
 Get-Module | Update-Module -Confirm: $false -Force -EA SilentlyContinue
-ForEach ($module in $modules) {
+forEach ($module in $modules) {
     try {
-        Write-ClientInstallLog "Installing PSModule $module"
-        Write-Warning "Installing PSModule $module"
+        $logMessage = "Installing PSModule $module"
+        Write-ClientInstallLog $logMessage
+        Write-Host $logMessage
         Install-Module $module -Confirm: $false -AllowClobber -Force -EA SilentlyContinue
     }
     catch {
-        Write-Warning "$module was not installed caused by the following Error:`n$Error[0].Exception.GetType().FullName"
-        Write-ClientInstallLog "$module was not installed caused by the following Error:`n$Error[0].Exception.GetType().FullName"
+        $logMessage = "$module was not installed caused by the following Error:`n$Error[0].Exception.GetType().FullName"
+        Write-Warning $logMessage
+        Write-ClientInstallLog $logMessage
     }
 }
 Set-PSRepository -Name PSGallery -InstallationPolicy Untrusted
 Set-ExecutionPolicy -ExecutionPolicy AllSigned -Scope Process
 Update-Help -Confirm: $false -Force -EA SilentlyContinue
-# Install Chocolatey and packages:
-If (Test-Path -Path $chocoPath) {
-    Write-Warning "Chocolatey already installed, continuing with packages"
-    Write-ClientInstallLog "Chocolatey already installed, continuing with packages"
-    foreach ($package in $packages) {
+
+# Install WinGet and WinGet packages:
+$hasPackageManager = Get-AppPackage -name "Microsoft.DesktopAppInstaller"
+if ($hasPackageManager) {
+    $logMessage = "WinGet already installed, continuing with packages"
+    Write-Host $logMessage
+    Write-ClientInstallLog $logMessage
+    foreach ($winGetPackage in $winGetPackages) {
         try {
-            Write-ClientInstallLog "Installing $package"
-            choco install $package -y
+            $logMessage = "Installing $winGetPackage"
+            Write-ClientInstallLog $logMessage
+            Write-Host $logMessage
+            winget install --id $winGetPackage -e -h --source winget --accept-package-agreements --accept-source-agreements
         }
         catch {
-            Write-Warning "$package was not installed caused by the following Error:`n$Error[0].Exception.GetType().FullName"
-            Write-ClientInstallLog "$package was not installed caused by the following Error:`n$Error[0].Exception.GetType().FullName"
+            $logMessage = "$winGetPackage was not installed caused by the following Error:`n$Error[0].Exception.GetType().FullName"
+            Write-Warning $logMessage
+            Write-ClientInstallLog $logMessage
         }
     }
 }
 else {
     try {
-        Set-ExecutionPolicy Bypass -Scope Process -Force -EA Stop; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; Invoke-Expression ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))
-        ForEach ($package in $Packages) {
+        $logMessage = "WinGet not found, trying to fetch and install from WinGet's GitHub repository..."
+        Write-Host $logMessage
+        Write-ClientInstallLog $logMessage
+        Add-AppxPackage -Path "https://aka.ms/Microsoft.VCLibs.x64.14.00.Desktop.appx"
+        $releases_url = "https://api.github.com/repos/microsoft/winget-cli/releases/latest"
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+        $releases = Invoke-RestMethod -uri $releases_url
+        $latestRelease = $releases.assets | Where-Object { $_.browser_download_url.EndsWith("msixbundle") } | Select-Object -First 1
+        Add-AppxPackage -Path $latestRelease.browser_download_url
+        foreach ($winGetPackage in $winGetPackages) {
             try {
-                
-                Write-ClientInstallLog "Installing $package"
-                choco install $package -y
+                $logMessage = "Installing $winGetPackage"
+                Write-ClientInstallLog $logMessage
+                Write-Host $logMessage
+                winget install --id $winGetPackage -e -h --source winget --accept-package-agreements --accept-source-agreements
             }
             catch {
-                Write-Warning "$package was not installed caused by the following Error:`n$Error[0].Exception.GetType().FullName"
-                Write-ClientInstallLog "$package was not installed caused by the following Error:`n$Error[0].Exception.GetType().FullName"
+                $logMessage = "$winGetPackage was not installed caused by the following Error:`n$Error[0].Exception.GetType().FullName"
+                Write-Warning $logMessage
+                Write-ClientInstallLog $logMessage
             }
         }
     }
     catch {
-        # Use cmdline '$theError | Format-List * -Force' to see all sub-properties of a thrown error-code... and then`
-        # create an if function to make a custom error message handling - e.g.: 'if ($theError.Exception -like "*404*")'
         if ($Error.Exception -like "*404*") {
-            Write-Warning "The URL to fetch install-script for Chocolatey was not found or has been changed, please visit https://chocolatey.org/install `
-            to replace the URL or contact gakin@imara.ai for troubleshooting"
-            Write-ClientInstallLog "The URL to fetch install-script for Chocolatey was not found or has been changed, please visit https://chocolatey.org/install `
-            to replace the URL or contact gakin@imara.ai for troubleshooting"
+            $logMessage = "The URL to fetch install-script for WinGet was not found or has been changed, please visit https://learn.microsoft.com/en-us/windows/package-manager/winget `
+            to replace the URL or contact gchi@recursion.no for troubleshooting"
+            Write-Warning $logMessage
+            Write-ClientInstallLog $logMessage
         }
         if ($Error.Exception -notlike "*404*") {
-            Write-Warning "Chocolatey failed to install - Skipping package installs"
-            Write-ClientInstallLog "Chocolatey failed to install caused by the following Error:`n$Error[0].Exception.GetType().FullName"
+            $logMessage = "WinGet failed to install caused by the following Error:`n$Error[0].Exception.GetType().FullName"
+            Write-Warning $logMessage
+            Write-ClientInstallLog $logMessage
         }
     }
 }
-# Install Visual Studio Code Extensions:
-$vsExtCmd =
-'cmd /c start powershell -NoExit -Command {
-    foreach ($path in $vsCodePath) {
-        if (Test-Path -Path $path) {
-            Write-Output "VS Code found in $path"
-            forEach ($extension in $extensions) {
-                try {
-                    Write-ClientInstallLog "Installing extension $extension"
-                    Write-Warning "Installing extension $extension"
-                    Code --install-extension $extension --Force
-                }
-                catch {
-                    Write-Warning "$extension was not installed - extension skipped."
-                    Write-ClientInstallLog "$extension was not installed caused by the following Error:`n$Error[0].Exception.GetType().FullName"
-                }
+
+# Updates the PowerShell & Cmd variables that VSCode will use to install extensions:
+foreach ($level in "Machine", "User") {
+    try {
+        [Environment]::GetEnvironmentVariables($level).GetEnumerator() | ForEach-Object {
+            # For Path variables, append the new values, if they're not already in there
+            if ($_.Name -match 'Path$') { 
+                $_.Value = ($((Get-Content "Env:$($_.Name)") + ";$($_.Value)") -split ';' | Select-Object -unique) -join ';'
             }
+            $_
+        } | Set-Content -Path { "Env:$($_.Name)" }
+    }
+    catch {
+        if ($Error.Exception -like "*Get-Content : Cannot find path*") {
+            <# Do nothing and skip to next #>
         }
         else {
-            Write-Warning "VS Code was not found in $path"
-            Write-ClientInstallLog "VS Code was not found in $path caused by the following Error:`n$Error[0].Exception.GetType().FullName"
+            throw
         }
     }
-}'
-try {
-    Write-ClientInstallLog "Trying to invoke VS Code Extension script"
-    Write-Warning "Trying to invoke VS Code Extension script"
-    Invoke-Expression -EA SilentlyContinue $vsExtCmd # Alternative Invoke-Command ScriptBlock{<script here>} - if you need the intellisense.
+    
+}
+
+# Install Visual Studio Code Extensions:
+foreach ($path in $vsCodePath) {
+    if (Test-Path -Path $path) {
+        Write-Output "VS Code found in $path"
+        forEach ($extension in $Extensions) {
+            try {
+                $logMessage = "Installing VSCode extension $extension"
+                Write-ClientInstallLog $logMessage
+                Write-Host $logMessage
+                Code --install-extension $extension --force
+            }
+            catch {
+                $logMessage = "VSCode extension $extension was not installed caused by the following Error:`n$Error[0].Exception.GetType().FullName"
+                Write-Warning $logMessage
+                Write-ClientInstallLog $logmessage
+            }
+        }
+    }
+    else {
+        $logMessage = "VS Code was not found in $path"
+        Write-ClientInstallLog $logMessage
+    }
+}
+
+<#try {
+    $logMessage = "Trying to invoke VS Code Extension script"
+    Write-Host $logMessage
+    Write-ClientInstallLog $logMessage
+    Invoke-Expression -EA SilentlyContinue $vsExtCmd #Alternative: Invoke-Command ScriptBlock{<script here>}
 }
 catch {
-    Write-Warning "Failed to invoke VS Code Extension script - skipped process."
-    Write-ClientInstallLog "Failed to invoke VS Code Extension script caused by the following Error:`n$Error[0].Exception.GetType().FullName"
+    $logMessage = "Failed to invoke VS Code Extension script - skipped process.`n$Error[0].Exception.GetType().FullName"
+    Write-Warning $logMessage
+    Write-ClientInstallLog $logMessage
 }
+
 # Specify the settings for scheduled tasks:
 $RegisterScheduledTask = @{
-    TaskName = "Windows SpotLight Image Fetcher"
-    Trigger = New-ScheduledTaskTrigger -AtStartup
-    User = "Users"
-    Action = New-ScheduledTaskAction -Execute "PowerShell.exe" -Argument "C:\Users\gchi\SynologyDrive\Projects\Powershell\CopyWindowsSpotlightPictures.ps1"
+    TaskName = "Windows SpotLight Image Fetcher",
+    Trigger = New-ScheduledTaskTrigger -AtStartup,
+    User = "Users",
+    Action = New-ScheduledTaskAction -Execute "PowerShell.exe" -Argument "C:\Users\gchi\SynologyDrive\Projects\Powershell\CopyWindowsSpotlightPictures.ps1",
     RunLevel = Highest
 }
 # Create Scheduled tasks
+
 try {
     Write-ClientInstallLog "Configuring Scheduled tasks $task"
     Write-Warning "Configuring Scheduled tasks $task"
@@ -165,4 +214,5 @@ catch {
     Write-Warning "Failed to configure scheduled task, skipping to next scheduled task"
     Write-ClientInstallLog "Failed to configure scheduled task caused by the following Error:`n$Error[0].Exception.GetType().FullName"
 }
+#>
 #=============== END SCRIPT ===============#
