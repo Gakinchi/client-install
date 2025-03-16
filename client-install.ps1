@@ -12,7 +12,7 @@ a) For customizations - find available Chocolatey NuGet packages from web: https
 b) Note: In my experience - the VS Code Extension part doesn't work until you reload the PowerShell,
    this is why I use Invoke-Command or Invoke-Expression on a new PS window instead
 c) You're free to modify this script as you want and if you do find improvements, please file a bug or feature request
-   as an issue at Github or notify me at gchi@recursion.no
+   as an issue at Github or notify me at dennisi@recursion.no
 d) Do not hesitate to contribute a bug fix or feature implementation by submitting a pull request, but keep in mind
    Commit with a summarized explanation about the change
 ==============================================================#>
@@ -21,10 +21,11 @@ d) Do not hesitate to contribute a bug fix or feature implementation by submitti
 # Initialize path parameters:
 $logFilePath = $env:USERPROFILE + '\Documents\Install Log'
 $vsCodePath = ($env:USERPROFILE + '\AppData\Local\Programs\Microsoft VS Code\'), 'C:\Program Files\Microsoft VS Code\', 'C:\Program Files (x86)\Microsoft VS Code\'
+
 # Initialize Windows features, Powershell modules, WinGet packages and VSCode extensions:
 $optionalFeatures = 'Microsoft-Windows-Subsystem-Linux', 'Microsoft-Hyper-V-All'
 $modules = 'Az', 'posh-git', 'oh-my-posh', 'Microsoft.Graph', 'ExchangeOnlineManagement', 'MicrosoftTeams', 'Microsoft.Online.SharePoint.PowerShell', 'PnP.PowerShell'
-$winGetPackages = 'Git.Git', 'GitHub.cli', '7zip.7zip', 'Microsoft.Teams', 'JanDeDobbeleer.OhMyPosh', 'SlackTechnologies.Slack', 'Microsoft.PowerToys', 'Postman.Postman', 'qBittorrent.qBittorrent', 'Balena.Etcher', 'Microsoft.VisualStudioCode', 'qBittorrent.qBittorrent', 'Postman.Postman', 'Docker.DockerDesktop', 'Microsoft.PowerToys', '9WZDNCRFJ3PS'<# Microsoft Remote Desktop #>
+$winGetPackages = 'Git.Git', 'GitHub.cli', '7zip.7zip', 'Microsoft.Teams', 'JanDeDobbeleer.OhMyPosh', 'SlackTechnologies.Slack', 'Microsoft.PowerToys', 'Postman.Postman', 'qBittorrent.qBittorrent', 'Balena.Etcher', 'Microsoft.VisualStudioCode', 'qBittorrent.qBittorrent', 'Docker.DockerDesktop', 'Microsoft.PowerToys', '9WZDNCRFJ3PS'<# Microsoft Remote Desktop #>
 $extensions = 'vscode.powershell', 'ms-vscode.powershell', 'ms-vscode-remote.remote-wsl', 'ms-dotnettools.csharp', 'ms-vscode.cpptools', 'visualstudioexptteam.vscodeintellicode', 'ms-vscode.azure-account', 'ms-azuretools.vscode-logicapps', 'vscode.docker', 'vscode.yaml', 'ms-azuretools.vscode-docker', 'ms-toolsai.jupyter', 'ms-python.python', 'ecmel.vscode-html-css', 'felixfbecker.php-intellisense'
 # Automatically add my own permanent Project environment variable, this can be replaced/customized as suited for you:
 [Environment]::SetEnvironmentVariable("Projects", "$env:USERPROFILE\SynologyDrive\Projects", "User")
